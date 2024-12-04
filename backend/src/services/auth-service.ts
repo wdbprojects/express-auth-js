@@ -6,6 +6,11 @@ import SessionModel from "../models/session-model";
 import jwt from "jsonwebtoken";
 import appAssert from "../utils/appAsserts";
 import { CONFLICT, UNAUTHORIZED } from "../constants/http";
+import {
+  accessTokenSignOptions,
+  refreshTokenSignOptions,
+  signToken,
+} from "../utils/jwt";
 
 export type CreateAccountParams = {
   email: string;
@@ -19,6 +24,8 @@ export type LoginUserParams = {
 };
 
 /* BUSINESS LOGIC */
+
+/* REGISTER (CREATE) USER SERVICE */
 export const createAccount = async (data: CreateAccountParams) => {
   // 1. verify if user exists
   const existingUser = await UserModel.exists({ email: data.email });
@@ -43,16 +50,11 @@ export const createAccount = async (data: CreateAccountParams) => {
     userAgent: data.userAgent,
   });
   // 6. sign access token & refresh token
-  const refreshToken = jwt.sign(
+  const refreshToken = signToken(
     { sessionId: session._id },
-    process.env.JWT_REFRESH_SECRET!,
-    { audience: ["user"], expiresIn: "30d" },
+    refreshTokenSignOptions,
   );
-  const accessToken = jwt.sign(
-    { userId: user._id, sessionId: session._id },
-    process.env.JWT_SECRET!,
-    { audience: ["user"], expiresIn: "15m" },
-  );
+  const accessToken = signToken({ userId: user._id, sessionId: session._id });
 
   // 7. return new user and access tokens
   return {
@@ -62,6 +64,7 @@ export const createAccount = async (data: CreateAccountParams) => {
   };
 };
 
+/* LOGIN USER SERVICE */
 export const loginUser = async ({
   email,
   password,
@@ -80,15 +83,9 @@ export const loginUser = async ({
     sessionId: session._id,
   };
   // 4. sign access token & refresh token
-  const refreshToken = jwt.sign(sessionInfo, process.env.JWT_REFRESH_SECRET!, {
-    audience: ["user"],
-    expiresIn: "30d",
-  });
-  const accessToken = jwt.sign(
-    { ...sessionInfo, userId: user._id },
-    process.env.JWT_SECRET!,
-    { audience: ["user"], expiresIn: "15m" },
-  );
+  const refreshToken = signToken(sessionInfo, refreshTokenSignOptions);
+  const accessToken = signToken({ ...sessionInfo, userId: user._id });
+
   // 5. return user and tokens
   return {
     user: user.omitPassword(),
